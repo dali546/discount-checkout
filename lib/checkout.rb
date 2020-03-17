@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require './discounts'
 
 class Checkout
   attr_reader :prices, :discounts
@@ -6,6 +7,7 @@ class Checkout
 
   def initialize(prices)
     @prices = prices
+    @discounts = DiscountsDatabase.discounts
   end
 
   def scan(item)

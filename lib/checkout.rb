@@ -1,6 +1,8 @@
+# frozen_string_literal: true
+
 class Checkout
-  attr_reader :prices
-  private :prices
+  attr_reader :prices, :discounts
+  private :prices, :discounts
 
   def initialize(prices)
     @prices = prices
@@ -11,33 +13,50 @@ class Checkout
   end
 
   def total
-    total = 0
+    priced_items.values.sum
+  end
 
-    basket.inject(Hash.new(0)) { |items, item| items[item] += 1; items }.each do |item, count|
-      if item == :apple || item == :pear
-        if (count % 2 == 0)
-          total += prices.fetch(item) * (count / 2)
-        else
-          total += prices.fetch(item) * count
-        end
-      elsif item == :banana || item == :pineapple
-        if item == :pineapple
-          total += (prices.fetch(item) / 2)
-          total += (prices.fetch(item)) * (count - 1)
-        else
-          total += (prices.fetch(item) / 2) * count
-        end
-      else
-        total += prices.fetch(item) * count
-      end
+  def priced_items
+    collected_items.each_with_object(Hash.new(0)) do |item, items|
+      items[item[0]] = price_item(item)
     end
+  end
 
-    total
+  def collected_items
+    basket.each_with_object(Hash.new(0)) do |item, items|
+      items[item] += 1
+    end
+  end
+
+  def price_item(item)
+    if %i[apple pear].include?(item[0])
+      buy_two_for_one(item)
+    elsif item[0] == :pineapple
+      (prices.fetch(item[0]) / 2) + prices.fetch(item[0]) * (item[1] - 1)
+    elsif item[0] == :banana
+      (prices.fetch(item[0]) / 2) * item[1]
+    elsif item[0] == :mango
+      if (item[1] % 4).zero?
+        (prices.fetch(item[0]) * (item[1] - 1))
+      else
+        prices.fetch(item[0]) * item[1]
+      end
+    else
+      prices.fetch(item[0]) * item[1]
+    end
+  end
+
+  def buy_two_for_one(item)
+    if (item[1] % 2).zero?
+      prices.fetch(item[0]) * (item[1] / 2)
+    else
+      prices.fetch(item[0]) * item[1]
+    end
   end
 
   private
 
   def basket
-    @basket ||= Array.new
+    @basket ||= []
   end
 end

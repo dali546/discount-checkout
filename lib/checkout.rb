@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require './discounts'
 
 class Checkout
@@ -7,58 +8,84 @@ class Checkout
 
   def initialize(prices)
     @prices = prices
-    @discounts = DiscountsDatabase.discounts
+    @discounts = DiscountsDatabase::DISCOUNTS
   end
 
   def scan(item)
-    basket << item.to_sym
+    basket << BasketItem.new(item.to_sym, 1)
   end
 
   def total
-    priced_items.values.sum
-  end
-
-  def priced_items
-    collected_items.each_with_object(Hash.new(0)) do |item, items|
-      items[item[0]] = price_item(item)
-    end
-  end
-
-  def collected_items
-    basket.each_with_object(Hash.new(0)) do |item, items|
-      items[item] += 1
-    end
-  end
-
-  def price_item(item)
-    if %i[apple pear].include?(item[0])
-      buy_two_for_one(item)
-    elsif item[0] == :pineapple
-      (prices.fetch(item[0]) / 2) + prices.fetch(item[0]) * (item[1] - 1)
-    elsif item[0] == :banana
-      (prices.fetch(item[0]) / 2) * item[1]
-    elsif item[0] == :mango
-      if (item[1] % 4).zero?
-        (prices.fetch(item[0]) * (item[1] - 1))
-      else
-        prices.fetch(item[0]) * item[1]
-      end
-    else
-      prices.fetch(item[0]) * item[1]
-    end
-  end
-
-  def buy_two_for_one(item)
-    if (item[1] % 2).zero?
-      prices.fetch(item[0]) * (item[1] / 2)
-    else
-      prices.fetch(item[0]) * item[1]
-    end
+    priced_items.map(&:price).sum
   end
 
   private
 
+  def priced_items
+    grouped_basket_items.each_with_object([]) do |item, items|
+      items << PricedItem.new(item.name, calculate_price(item))
+    end
+  end
+
+  def grouped_basket_items
+    basket.each_with_object([]) do |basket_item, items|
+      if items.any? { |item| item.name == basket_item.name }
+        items.find { |item| item.name == basket_item.name }
+             .quantity += basket_item.quantity
+      else
+        items << BasketItem.new(basket_item.name, basket_item.quantity)
+      end
+    end
+  end
+
   def basket
     @basket ||= []
   end
+
+  def calculate_price(item)
+    selected_discount = select_discount_for(item)
+
+    unless selected_discount.nil?
+      discount_price = send(selected_discount[:discount_type], item)
+    end
+
+    discount_price || standard_price(item)
+  end
+
+  def select_discount_for(item)
+    discounts.find do |discount|
+      discount[:applies_to].include?(item.name)
+    end
+  end
+
+  def standard_price(item)
+    prices.fetch(item.name) * item.quantity
+  end
+
+  # discount :buy_three_get_one_free
+  def buy_three_get_one_free(item)
+    return unless (item.quantity % 4).zero?
+
+    (prices.fetch(item.name) * (item.quantity - 1))
+  end
+
+  # discount :buy_three_get_one_free
+  def half_price(item)
+    (prices.fetch(item.name) / 2) * item.quantity
+  end
+
+  # discount :buy_three_get_one_free
+  def half_price_on_one_item(item)
+    prices.fetch(item.name) / 2 + prices.fetch(item.name) * (item.quantity - 1)
+  end
+
+  # discount :buy_three_get_one_free
+  def two_for_one(item)
+    return unless (item.quantity % 2).zero?
+
+    prices.fetch(item.name) * (item.quantity / 2)
+  end
+
+  BasketItem = Struct.new(:name, :quantity)
+  PricedItem = Struct.new(:name, :price)
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require './discounts'
+require 'discount_adapter'
 
 class Checkout
   attr_reader :prices, :discounts
@@ -46,7 +47,8 @@ class Checkout
     selected_discount = select_discount_for(item)
 
     unless selected_discount.nil?
-      discount_price = send(selected_discount[:discount_type], item)
+      discount_price = DiscountAdapter.new(prices, item)
+                                      .apply(selected_discount)
     end
 
     discount_price || standard_price(item)
@@ -60,30 +62,6 @@ class Checkout
 
   def standard_price(item)
     prices.fetch(item.name) * item.quantity
-  end
-
-  # discount :buy_three_get_one_free
-  def buy_three_get_one_free(item)
-    return unless (item.quantity % 4).zero?
-
-    (prices.fetch(item.name) * (item.quantity - 1))
-  end
-
-  # discount :buy_three_get_one_free
-  def half_price(item)
-    (prices.fetch(item.name) / 2) * item.quantity
-  end
-
-  # discount :buy_three_get_one_free
-  def half_price_on_one_item(item)
-    prices.fetch(item.name) / 2 + prices.fetch(item.name) * (item.quantity - 1)
-  end
-
-  # discount :buy_three_get_one_free
-  def two_for_one(item)
-    return unless (item.quantity % 2).zero?
-
-    prices.fetch(item.name) * (item.quantity / 2)
   end
 
   BasketItem = Struct.new(:name, :quantity)
